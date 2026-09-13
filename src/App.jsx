@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import './App.css';
+import L from 'leaflet';
 
 // Fix pour les icônes Leaflet sous Vite
 import icon from 'leaflet/dist/images/marker-icon.png';
