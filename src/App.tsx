@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Papa from 'papaparse';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
+import { Analytics } from '@vercel/analytics/react';
 import './App.css';
 
 const getDistance = (lat1, lon1, lat2, lon2) => {
@@ -264,6 +265,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
