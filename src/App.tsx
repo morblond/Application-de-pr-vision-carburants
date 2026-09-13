@@ -29,7 +29,10 @@ export default function App() {
   const [userLoc, setUserLoc] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [cpCoords, setCpCoords] = useState({});
+  
+  // États pour les filtres et le tri
   const [sortBy, setSortBy] = useState("price"); // "price" ou "distance"
+  const [maxDistance, setMaxDistance] = useState(0); // 0 = aucune limite
 
   // Récupération des données
   useEffect(() => {
@@ -84,10 +87,11 @@ export default function App() {
       alert("Veuillez autoriser la localisation dans les réglages de votre iPhone pour cette application.");
       setIsLocating(false);
       setSortBy("price"); // Retour au tri par prix si refusé
+      setMaxDistance(0); // Retire le filtre de distance si refusé
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
   };
 
-  // Filtrage par carburant et recherche
+  // Filtrage par carburant et recherche textuelle
   const filteredStations = useMemo(() => {
     let filtered = allStations.filter(s => s.type_carburant === selectedFuel);
     if (searchQuery) {
@@ -122,7 +126,7 @@ export default function App() {
     }
   }, [filteredStations]);
 
-  // Tri basé sur le bouton sélectionné
+  // Tri et Filtre Distance combinés
   const sortedStations = useMemo(() => {
     if (filteredStations.length === 0) return [];
 
@@ -135,14 +139,29 @@ export default function App() {
       return { ...s, _dist: dist };
     });
 
-    if (sortBy === "distance" && userLoc) {
-      return withDist.sort((a, b) => (a._dist === null ? 1 : b._dist === null ? -1 : a._dist - b._dist)).slice(0, 50);
-    } else {
-      return withDist.sort((a, b) => (parseFloat(a.prix_actuel) || 9999) - (parseFloat(b.prix_actuel) || 9999)).slice(0, 50);
+    // 1. Application du filtre de distance
+    let stationsToDisplay = withDist;
+    if (maxDistance > 0 && userLoc) {
+      stationsToDisplay = withDist.filter(s => s._dist !== null && s._dist <= maxDistance);
     }
-  }, [filteredStations, userLoc, cpCoords, sortBy]);
 
-  // Demande d'activation GPS si on clique sur tri par distance sans être localisé
+    // 2. Application du tri
+    if (sortBy === "distance" && userLoc) {
+      return stationsToDisplay.sort((a, b) => (a._dist === null ? 1 : b._dist === null ? -1 : a._dist - b._dist)).slice(0, 50);
+    } else {
+      return stationsToDisplay.sort((a, b) => (parseFloat(a.prix_actuel) || 9999) - (parseFloat(b.prix_actuel) || 9999)).slice(0, 50);
+    }
+  }, [filteredStations, userLoc, cpCoords, sortBy, maxDistance]);
+
+  // Gestion du clic sur le filtre distance
+  const handleDistanceChange = (val) => {
+    setMaxDistance(parseInt(val));
+    if (parseInt(val) > 0 && !userLoc) {
+      handleLocate(true); // Demande le GPS si on veut filtrer par distance sans être localisé
+    }
+  };
+
+  // Gestion du clic sur le tri
   const handleSortClick = (type) => {
     setSortBy(type);
     if (type === "distance" && !userLoc) {
@@ -212,25 +231,42 @@ export default function App() {
         </button>
       </div>
 
-      {/* Boutons de Tri */}
-      <div className="sort-controls">
-        <button 
-          className={`sort-btn ${sortBy === 'price' ? 'active' : ''}`}
-          onClick={() => handleSortClick('price')}
+      {/* Ligne des Filtres et Tris */}
+      <div className="filter-bar">
+        <select 
+          className="distance-select"
+          value={maxDistance}
+          onChange={(e) => handleDistanceChange(e.target.value)}
         >
-          💶 Par Prix
-        </button>
-        <button 
-          className={`sort-btn ${sortBy === 'distance' ? 'active' : ''}`}
-          onClick={() => handleSortClick('distance')}
-        >
-          📍 Par Distance
-        </button>
+          <option value="0">Toutes distances</option>
+          <option value="5">5 km</option>
+          <option value="10">10 km</option>
+          <option value="25">25 km</option>
+          <option value="50">50 km</option>
+          <option value="100">100 km</option>
+        </select>
+        
+        <div className="sort-controls">
+          <button 
+            className={`sort-btn ${sortBy === 'price' ? 'active' : ''}`}
+            onClick={() => handleSortClick('price')}
+          >
+            💶 Prix
+          </button>
+          <button 
+            className={`sort-btn ${sortBy === 'distance' ? 'active' : ''}`}
+            onClick={() => handleSortClick('distance')}
+          >
+            📍 Distance
+          </button>
+        </div>
       </div>
 
       <div className="list-wrapper">
         {sortedStations.length === 0 && (
-          <p className="empty-text">Aucune station trouvée.</p>
+          <p className="empty-text">
+            {maxDistance > 0 ? `Aucune station trouvée dans un rayon de ${maxDistance} km.` : "Aucune station trouvée."}
+          </p>
         )}
         
         {sortedStations.map((station, index) => {
