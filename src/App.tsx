@@ -8,7 +8,6 @@ import L from 'leaflet';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import './App.css';
 
-// Configuration de l'icône du marqueur
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -27,13 +26,11 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Trouver le dernier fichier via l'API data.gouv.fr
         const apiRes = await axios.get('https://www.data.gouv.fr/api/1/datasets/previsions-des-prix-du-carburants-de-1-a-31-jours-france/');
         const csvResource = apiRes.data.resources.find((r: any) => r.format === 'csv' && r.title.includes('previsions-par-station'));
         
         if (!csvResource) throw new Error("Fichier introuvable");
 
-        // 2. Télécharger et parser le CSV
         const csvRes = await axios.get(csvResource.url);
         const parsedData = Papa.parse(csvRes.data, {
           header: true,
@@ -41,7 +38,6 @@ export default function App() {
           dynamicTyping: true,
         });
 
-        // 3. Filtrer les stations valides
         const validStations = parsedData.data.filter((s: any) => s.latitude && s.longitude);
         setStations(validStations);
         setLoading(false);
@@ -53,32 +49,26 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Préparation des données pour le graphique
   const prepareChartData = (station: any) => {
+    if (!station) return [];
     const data = [];
-    if (!station) return data;
-    
-    Object.keys(station).forEach(key => {
-      if (key.toLowerCase().includes('prix') && typeof station[key] === 'number') {
-        const dayMatch = key.match(/\d+/);
-        const dayLabel = dayMatch ? `J+${dayMatch[0]}` : key;
-        data.push({ jour: dayLabel, prix: station[key] });
+    for (let i = 1; i <= 31; i++) {
+      const priceKey = `prix_jour_${i}`; // Adaptez si le nom de la colonne est différent
+      if (station[priceKey] !== null && station[priceKey] !== undefined) {
+        data.push({ jour: `J+${i}`, prix: station[priceKey] });
       }
-    });
-    
-    return data.sort((a: any, b: any) => {
-      const dayA = parseInt(a.jour.match(/\d+/)?.[0] || 0);
-      const dayB = parseInt(b.jour.match(/\d+/)?.[0] || 0);
-      return dayA - dayB;
-    });
+    }
+    return data;
   };
 
-  if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', fontFamily: 'sans-serif' }}>
-      <div className="loader"></div>
-      <p>Récupération des données...</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', fontFamily: 'sans-serif' }}>
+        <div className="loader"></div>
+        <p>Récupération des données...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -117,4 +107,16 @@ export default function App() {
                 <XAxis dataKey="jour" tick={{ fontSize: 10 }} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="prix" stroke
+                <Line type="monotone" dataKey="prix" stroke="#ff7300" strokeWidth={3} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </>
+        ) : (
+          <div className="placeholder">
+            👆 Cliquez sur une station sur la carte pour voir l'évolution des prix.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
