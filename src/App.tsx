@@ -5,7 +5,7 @@ import Papa from 'papaparse';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import './App.css';
 
-// Fonction mathématique pour calculer la distance entre 2 points GPS (Formule de Haversine)
+// Formule scientifique de calcul de distance (Haversine)
 const getDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Rayon de la Terre en km
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -26,10 +26,10 @@ export default function App() {
   const [availableFuels, setAvailableFuels] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
   
-  // États pour la géolocalisation
   const [userLoc, setUserLoc] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [cpCoords, setCpCoords] = useState({}); // Cache des coordonnées des codes postaux
+  const [cpCoords, setCpCoords] = useState({});
+  const [sortBy, setSortBy] = useState("price"); // "price" ou "distance"
 
   // Récupération des données
   useEffect(() => {
@@ -60,15 +60,16 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Demande la localisation à l'utilisateur
-  const handleLocate = () => {
+  // Demande la localisation GPS stricte
+  const handleLocate = (autoSort = false) => {
     if (!navigator.geolocation) return alert("La géolocalisation n'est pas supportée par votre navigateur.");
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords;
       setUserLoc({ lat: latitude, lng: longitude });
       
-      // Trouve le code postal de l'utilisateur pour filtrer la liste
+      if (autoSort) setSortBy("distance");
+      
       try {
         const revGeo = await axios.get(`https://geo.api.gouv.fr/communes?lat=${latitude}&lon=${longitude}&fields=codePostaux`);
         if (revGeo.data && revGeo.data.length > 0) {
@@ -80,12 +81,13 @@ export default function App() {
       }
       setIsLocating(false);
     }, (error) => {
-      alert("Impossible de récupérer votre position. Vérifiez vos autorisations.");
+      alert("Veuillez autoriser la localisation dans les réglages de votre iPhone pour cette application.");
       setIsLocating(false);
-    });
+      setSortBy("price"); // Retour au tri par prix si refusé
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
   };
 
-  // Dès que les stations filtrées changent, on récupère les coordonnées GPS de leur code postal
+  // Filtrage par carburant et recherche
   const filteredStations = useMemo(() => {
     let filtered = allStations.filter(s => s.type_carburant === selectedFuel);
     if (searchQuery) {
@@ -95,22 +97,23 @@ export default function App() {
         (s.code_postal && String(s.code_postal).includes(q))
       );
     }
-    return filtered.slice(0, 50);
+    return filtered;
   }, [allStations, searchQuery, selectedFuel]);
 
+  // Récupération des coordonnées GPS des codes postaux
   useEffect(() => {
     if (filteredStations.length === 0) return;
     const uniqueCPs = [...new Set(filteredStations.map(s => s.code_postal).filter(Boolean))];
     const missingCPs = uniqueCPs.filter(cp => !cpCoords[cp]);
     
     if (missingCPs.length > 0) {
-      Promise.all(missingCPs.map(cp => 
+      Promise.allSettled(missingCPs.map(cp => 
         axios.get(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=centre&format=geojson`)
       )).then(results => {
         const newCoords = { ...cpCoords };
         results.forEach((res, i) => {
-          if (res.data.features && res.data.features.length > 0) {
-            const coords = res.data.features[0].geometry.coordinates;
+          if (res.status === 'fulfilled' && res.value.data.features && res.value.data.features.length > 0) {
+            const coords = res.value.data.features[0].geometry.coordinates;
             newCoords[missingCPs[i]] = { lat: coords[1], lng: coords[0] };
           }
         });
@@ -119,23 +122,37 @@ export default function App() {
     }
   }, [filteredStations]);
 
-  // Calcul de la distance et tri
+  // Tri basé sur le bouton sélectionné
   const sortedStations = useMemo(() => {
-    if (!userLoc) {
-      // Tri par prix si pas de géolocalisation
-      return [...filteredStations].sort((a, b) => (parseFloat(a.prix_actuel) || 9999) - (parseFloat(b.prix_actuel) || 9999));
-    }
-    // Tri par distance si géolocalisé
-    return [...filteredStations].sort((a, b) => {
-      const distA = getDistance(userLoc.lat, userLoc.lng, cpCoords[a.code_postal]?.lat || 0, cpCoords[a.code_postal]?.lng || 9999);
-      const distB = getDistance(userLoc.lat, userLoc.lng, cpCoords[b.code_postal]?.lat || 0, cpCoords[b.code_postal]?.lng || 9999);
-      return distA - distB;
+    if (filteredStations.length === 0) return [];
+
+    const withDist = filteredStations.map(s => {
+      let dist = null;
+      const c = cpCoords[s.code_postal];
+      if (c && userLoc) {
+        dist = getDistance(userLoc.lat, userLoc.lng, c.lat, c.lng);
+      }
+      return { ...s, _dist: dist };
     });
-  }, [filteredStations, userLoc, cpCoords]);
+
+    if (sortBy === "distance" && userLoc) {
+      return withDist.sort((a, b) => (a._dist === null ? 1 : b._dist === null ? -1 : a._dist - b._dist)).slice(0, 50);
+    } else {
+      return withDist.sort((a, b) => (parseFloat(a.prix_actuel) || 9999) - (parseFloat(b.prix_actuel) || 9999)).slice(0, 50);
+    }
+  }, [filteredStations, userLoc, cpCoords, sortBy]);
+
+  // Demande d'activation GPS si on clique sur tri par distance sans être localisé
+  const handleSortClick = (type) => {
+    setSortBy(type);
+    if (type === "distance" && !userLoc) {
+      handleLocate(true);
+    }
+  };
 
   const getDistanceForStation = (station) => {
-    if (!userLoc || !cpCoords[station.code_postal]) return null;
-    const dist = getDistance(userLoc.lat, userLoc.lng, cpCoords[station.code_postal].lat, cpCoords[station.code_postal].lng);
+    if (!userLoc || !station._dist) return null;
+    const dist = station._dist;
     return dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`;
   };
 
@@ -188,16 +205,32 @@ export default function App() {
         </select>
         <button 
           className={`gps-btn ${userLoc ? 'active' : ''}`} 
-          onClick={handleLocate}
+          onClick={() => handleLocate()}
           disabled={isLocating}
         >
           {isLocating ? '⏳' : '📍'}
         </button>
       </div>
 
+      {/* Boutons de Tri */}
+      <div className="sort-controls">
+        <button 
+          className={`sort-btn ${sortBy === 'price' ? 'active' : ''}`}
+          onClick={() => handleSortClick('price')}
+        >
+          💶 Par Prix
+        </button>
+        <button 
+          className={`sort-btn ${sortBy === 'distance' ? 'active' : ''}`}
+          onClick={() => handleSortClick('distance')}
+        >
+          📍 Par Distance
+        </button>
+      </div>
+
       <div className="list-wrapper">
         {sortedStations.length === 0 && (
-          <p className="empty-text">Aucune station trouvée. {userLoc ? "Touchez 📍 pour vous localiser." : ""}</p>
+          <p className="empty-text">Aucune station trouvée.</p>
         )}
         
         {sortedStations.map((station, index) => {
