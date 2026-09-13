@@ -1,44 +1,19 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Papa from 'papaparse';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import './App.css';
-
-// Configuration de l'icône
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
-});
-
-// Composant pour déplacer la carte automatiquement
-function ChangeMapView({ center }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) {
-      map.setView(center, 12); // Zoom niveau 12 sur la ville
-    }
-  }, [center]);
-  return null;
-}
 
 export default function App() {
   const [allStations, setAllStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [mapCenter, setMapCenter] = useState([46.603354, 1.888334]); // Centre de la France par défaut
+  const [selectedFuel, setSelectedFuel] = useState("");
+  const [availableFuels, setAvailableFuels] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
 
-  // 1. Récupérer les données du fichier CSV
+  // Récupération des données
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -55,6 +30,12 @@ export default function App() {
         });
 
         setAllStations(parsedData.data);
+        
+        // Extraction automatique des types de carburants disponibles
+        const fuels = [...new Set(parsedData.data.map(s => s.type_carburant).filter(Boolean))];
+        setAvailableFuels(fuels);
+        if (fuels.length > 0) setSelectedFuel(fuels[0]);
+        
         setLoading(false);
       } catch (error) {
         console.error("Erreur:", error);
@@ -64,38 +45,26 @@ export default function App() {
     fetchData();
   }, []);
 
-  // 2. Filtrer et Géolocaliser dès qu'on tape une recherche
-  useEffect(() => {
-    if (searchQuery.length < 3) {
-      setSearchResults([]);
-      return;
+  // Filtrage et tri par prix croissant
+  const filteredStations = useMemo(() => {
+    let filtered = allStations.filter(s => s.type_carburant === selectedFuel);
+    
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(s => 
+        (s.ville && s.ville.toLowerCase().includes(q)) ||
+        (s.code_postal && String(s.code_postal).includes(q))
+      );
     }
 
-    const q = searchQuery.toLowerCase();
-    // Filtrer les stations
-    const matched = allStations.filter(s => 
-      (s.ville && s.ville.toLowerCase().includes(q)) ||
-      (s.code_postal && String(s.code_postal).includes(q))
-    ).slice(0, 30); // Limite à 30 résultats pour la performance
+    // Tri par prix actuel
+    return filtered.sort((a, b) => {
+      const pa = parseFloat(a.prix_actuel) || 9999;
+      const pb = parseFloat(b.prix_actuel) || 9999;
+      return pa - pb;
+    }).slice(0, 50); // Limite à 50 résultats pour la performance
+  }, [allStations, searchQuery, selectedFuel]);
 
-    setSearchResults(matched);
-
-    // Trouver les coordonnées GPS de la ville via l'API gouvernementale
-    if (matched.length > 0 && matched[0].code_postal) {
-      const cp = matched[0].code_postal;
-      axios.get(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=centre&format=geojson`)
-        .then(res => {
-          if (res.data && res.data.features && res.data.features.length > 0) {
-            const coords = res.data.features[0].geometry.coordinates;
-            // L'API renvoie [longitude, latitude], Leaflet veut [latitude, longitude]
-            setMapCenter([coords[1], coords[0]]);
-          }
-        })
-        .catch(err => console.error("Erreur géoloc:", err));
-    }
-  }, [searchQuery, allStations]);
-
-  // 3. Préparer les données pour le graphique
   const prepareChartData = (station) => {
     if (!station) return [];
     const data = [];
@@ -103,6 +72,18 @@ export default function App() {
     if (station.prix_predit_j7) data.push({ jour: "J+7", prix: parseFloat(station.prix_predit_j7) });
     if (station.prix_predit_j14) data.push({ jour: "J+14", prix: parseFloat(station.prix_predit_j14) });
     return data;
+  };
+
+  const getTrend = (station) => {
+    if (!station || !station.prix_actuel || !station.prix_predit_j14) return null;
+    const diff = parseFloat(station.prix_predit_j14) - parseFloat(station.prix_actuel);
+    return diff;
+  };
+
+  // Génère le lien GPS pour iPhone (Apple Plans) ou Android
+  const getNavLink = (station) => {
+    const query = encodeURIComponent(`${station.marque} ${station.code_postal} ${station.ville}`);
+    return `https://maps.apple.com/?q=${query}`;
   };
 
   if (loading) return (
@@ -115,56 +96,79 @@ export default function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>Forecast Carburant 🚗</h1>
+        <h1>Forecast Carburant ⛽</h1>
       </header>
       
-      <div className="search-container">
+      {/* Contrôles fixes en haut */}
+      <div className="controls-wrapper">
         <input 
           type="text" 
           className="search-input"
-          placeholder="🔎 Tapez un code postal ou une ville..." 
+          placeholder="🔎 Ville ou code postal..." 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+        <select 
+          className="fuel-select"
+          value={selectedFuel}
+          onChange={(e) => setSelectedFuel(e.target.value)}
+        >
+          {availableFuels.map(fuel => (
+            <option key={fuel} value={fuel}>{fuel}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="map-wrapper">
-        <MapContainer center={mapCenter} zoom={6} style={{ height: '100%', width: '100%' }}>
-          <ChangeMapView center={mapCenter} />
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {searchResults.map((station, index) => {
-            // On place les marqueurs autour du centre de la ville avec un léger décalage aléatoire pour qu'ils ne se chevauchent pas tous
-            const offsetLat = (Math.random() - 0.5) * 0.02; 
-            const offsetLng = (Math.random() - 0.5) * 0.02;
-            return (
-              <Marker 
-                key={index} 
-                position={[mapCenter[0] + offsetLat, mapCenter[1] + offsetLng]}
-                icon={DefaultIcon}
-                eventHandlers={{ click: () => setSelectedStation(station) }}
-              >
-                <Popup>
-                  <strong>{station.marque}</strong><br />
-                  {station.ville} ({station.code_postal})<br />
-                  {station.type_carburant}: {station.prix_actuel} €
-                </Popup>
-              </Marker>
-            );
-          })}
-        </MapContainer>
+      <div className="list-wrapper">
+        {filteredStations.length === 0 && (
+          <p className="empty-text">Aucune station trouvée. Essayez une autre ville.</p>
+        )}
+        
+        {filteredStations.map((station, index) => {
+          const trend = getTrend(station);
+          const isBaisse = trend < 0;
+          const isHausse = trend > 0;
+
+          return (
+            <div 
+              key={index} 
+              className="station-card"
+              onClick={() => setSelectedStation(station)}
+            >
+              <div className="card-left">
+                <span className="station-rank">#{index + 1}</span>
+                <div className="station-info">
+                  <span className="station-brand">{station.marque}</span>
+                  <span className="station-city">{station.ville} ({station.code_postal})</span>
+                </div>
+              </div>
+              <div className="card-right">
+                <span className="price-main">{station.prix_actuel} €</span>
+                {trend !== null && (
+                  <span className={`trend-badge ${isBaisse ? 'baisse' : 'hausse'}`}>
+                    {isBaisse ? '▼' : '▲'} {Math.abs(trend).toFixed(3)}€
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="bottom-panel">
-        {selectedStation ? (
-          <div className="station-details">
-            <button className="back-btn" onClick={() => setSelectedStation(null)}>← Retour à la liste</button>
-            <h2>{selectedStation.marque}</h2>
-            <h3>{selectedStation.adresse || ''} {selectedStation.ville} ({selectedStation.code_postal})</h3>
-            
+      {/* Panneau de détail qui slide depuis le bas */}
+      {selectedStation && (
+        <div className="detail-overlay" onClick={() => setSelectedStation(null)}>
+          <div className="detail-panel" onClick={e => e.stopPropagation()}>
+            <div className="detail-header">
+              <button className="close-btn" onClick={() => setSelectedStation(null)}>✕</button>
+              <h2>{selectedStation.marque}</h2>
+              <h3>{selectedStation.ville} ({selectedStation.code_postal})</h3>
+            </div>
+
             <div className="text-forecast">
               <div className="forecast-row">
-                <span>Prix actuel</span>
-                <strong>{selectedStation.prix_actuel} €</strong>
+                <span>Prix Actuel</span>
+                <strong className="price-color">{selectedStation.prix_actuel} €</strong>
               </div>
               <div className="forecast-row">
                 <span>Dans 7 jours</span>
@@ -176,44 +180,23 @@ export default function App() {
               </div>
             </div>
 
-            <h4>Évolution graphique</h4>
-            <ResponsiveContainer width="100%" height={150}>
+            <h4>Évolution des prix</h4>
+            <ResponsiveContainer width="100%" height={180}>
               <LineChart data={prepareChartData(selectedStation)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="jour" tick={{ fontSize: 12 }} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(value) => `${value} €`} />
-                <Line type="monotone" dataKey="prix" stroke="#007bff" strokeWidth={3} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="prix" stroke="#007bff" strokeWidth={3} dot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
+
+            <a href={getNavLink(selectedStation)} target="_blank" rel="noopener noreferrer" className="nav-btn">
+              🧭 Y aller (Ouvrir dans Maps)
+            </a>
           </div>
-        ) : (
-          <div className="list-wrapper">
-            {searchResults.length === 0 && searchQuery.length >= 3 && (
-              <p className="empty-text">Aucune station trouvée pour cette recherche.</p>
-            )}
-            {searchResults.length === 0 && searchQuery.length < 3 && (
-              <p className="empty-text">🔎 Commencez à taper pour voir les stations.</p>
-            )}
-            {searchResults.map((station, index) => (
-              <div 
-                key={index} 
-                className="station-card"
-                onClick={() => setSelectedStation(station)}
-              >
-                <div className="station-info">
-                  <span className="station-brand">{station.marque}</span>
-                  <span className="station-city">{station.ville} ({station.code_postal})</span>
-                </div>
-                <div className="station-price">
-                  <span className="fuel-type">{station.type_carburant}</span>
-                  <span className="price">{station.prix_actuel} €</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

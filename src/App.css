@@ -23,152 +23,212 @@ html, body, #root {
 .app-header {
   background-color: #007bff;
   color: white;
-  padding: 15px;
+  padding: 20px 15px;
   text-align: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  z-index: 1001;
   flex-shrink: 0;
 }
 
 .app-header h1 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
 }
 
-.search-container {
+.controls-wrapper {
+  background: white;
   padding: 10px;
-  background-color: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  display: flex;
+  gap: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  z-index: 10;
   flex-shrink: 0;
-  z-index: 1000;
 }
 
-.search-input {
-  width: 100%;
+.search-input, .fuel-select {
   padding: 12px 15px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid #e0e0e0;
   background-color: #f4f5f7;
   font-size: 16px;
   outline: none;
 }
 
-.search-input:focus {
+.search-input {
+  flex-grow: 1;
+}
+
+.fuel-select {
+  width: 130px;
+  background-color: #f4f5f7;
+}
+
+.search-input:focus, .fuel-select:focus {
   border-color: #007bff;
   background-color: white;
 }
 
-.map-wrapper {
-  height: 40vh;
-  width: 100%;
-  z-index: 1;
-}
-
-.bottom-panel {
-  height: 45vh;
-  background-color: white;
-  border-top-left-radius: 20px;
-  border-top-right-radius: 20px;
-  box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+.list-wrapper {
+  flex-grow: 1;
   overflow-y: auto;
   padding: 15px;
-  flex-grow: 1;
+  padding-bottom: 40px;
 }
 
-/* Style de la Liste */
 .station-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 15px;
-  margin-bottom: 10px;
+  background: white;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform 0.1s ease-in-out;
 }
 
 .station-card:active {
   transform: scale(0.98);
-  background-color: #eef6ff;
+  background-color: #f0f7ff;
 }
 
-.station-info {
+.card-left {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.station-rank {
+  font-weight: 800;
+  color: #007bff;
+  font-size: 18px;
+  width: 30px;
 }
 
 .station-brand {
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 17px;
   color: #333;
+  display: block;
 }
 
 .station-city {
   font-size: 13px;
-  color: #666;
+  color: #888;
   margin-top: 3px;
+  display: block;
 }
 
-.station-price {
+.card-right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-.fuel-type {
-  font-size: 11px;
-  color: #888;
-  text-transform: uppercase;
-  font-weight: 600;
+.price-main {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111;
 }
 
-.price {
-  font-size: 18px;
+.trend-badge {
+  font-size: 12px;
   font-weight: 700;
-  color: #007bff;
-  margin-top: 2px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  margin-top: 5px;
 }
 
-/* Style du Détail */
-.station-details h2 {
-  font-size: 20px;
+.trend-badge.baisse {
+  color: #28a745;
+  background-color: #e6f9ec;
+}
+
+.trend-badge.hausse {
+  color: #dc3545;
+  background-color: #fdecee;
+}
+
+.empty-text {
+  text-align: center;
+  color: #888;
+  margin-top: 40px;
+  font-size: 16px;
+}
+
+/* Overlay Détail */
+.detail-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
+.detail-panel {
+  background: white;
+  width: 100%;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 25px 20px 40px 20px;
+  animation: slideUp 0.3s ease-out;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.detail-header {
+  position: relative;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.close-btn {
+  position: absolute;
+  top: -10px;
+  right: 0;
+  background: #f0f0f0;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.detail-header h2 {
+  font-size: 22px;
   color: #333;
-  margin-bottom: 5px;
 }
 
-.station-details h3 {
-  font-size: 14px;
+.detail-header h3 {
+  font-size: 15px;
   color: #666;
   font-weight: normal;
-  margin-bottom: 20px;
-}
-
-.back-btn {
-  background: none;
-  border: none;
-  color: #007bff;
-  font-size: 16px;
-  margin-bottom: 15px;
-  padding: 0;
-  cursor: pointer;
-  font-weight: 600;
+  margin-top: 5px;
 }
 
 .text-forecast {
   background: #f8f9fa;
-  border-radius: 12px;
-  padding: 5px 15px;
-  margin-bottom: 20px;
+  border-radius: 16px;
+  padding: 0 20px;
+  margin-bottom: 25px;
 }
 
 .forecast-row {
   display: flex;
   justify-content: space-between;
-  padding: 15px 0;
+  align-items: center;
+  padding: 18px 0;
   border-bottom: 1px solid #eee;
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .forecast-row:last-child {
@@ -180,25 +240,41 @@ html, body, #root {
 }
 
 .forecast-row strong {
+  font-size: 20px;
   color: #333;
-  font-size: 18px;
 }
 
 .forecast-row.highlight strong {
   color: #ff7300;
 }
 
-h4 {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 10px;
+.price-color {
+  color: #007bff !important;
 }
 
-.empty-text {
+h4 {
+  font-size: 16px;
+  color: #555;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.nav-btn {
+  display: block;
   text-align: center;
-  color: #888;
-  margin-top: 40px;
-  font-size: 15px;
+  background: #007bff;
+  color: white !important;
+  padding: 18px;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-top: 25px;
+  box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);
+}
+
+.nav-btn:active {
+  background: #0056b3;
 }
 
 .loader-container {
@@ -210,11 +286,11 @@ h4 {
 }
 
 .loader {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007bff;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #007bff;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   animation: spin 1s linear infinite;
   margin-bottom: 15px;
 }
