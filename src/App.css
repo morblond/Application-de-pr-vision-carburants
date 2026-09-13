@@ -1,51 +1,77 @@
-/* Ligne Filtre et Tri */
-.filter-bar {
-  background: white;
-  padding: 0 15px 12px 15px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-  z-index: 10;
-  flex-shrink: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-.distance-select {
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid #e0e0e0;
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: #f4f5f7;
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  outline: none;
-  width: 130px;
 }
 
-.sort-controls {
-  display: flex;
-  background: #e9ecef;
-  flex-grow: 1;
-  border-radius: 10px;
-  padding: 4px;
-  gap: 4px;
-}
+.app-container { display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
 
-.sort-btn {
-  flex: 1;
-  padding: 8px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #555;
-  cursor: pointer;
-  transition: all 0.2s;
-}
+.app-header { background-color: #007bff; color: white; padding: 20px 15px; text-align: center; flex-shrink: 0; }
+.app-header h1 { font-size: 20px; font-weight: 700; }
 
-.sort-btn.active {
-  background: white;
-  color: #007bff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+.controls-wrapper { background: white; padding: 10px; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); z-index: 10; flex-shrink: 0; }
+.search-input, .fuel-select { padding: 12px 15px; border-radius: 10px; border: 1px solid #e0e0e0; background-color: #f4f5f7; font-size: 16px; outline: none; }
+.search-input { flex-grow: 1; }
+.fuel-select { width: 120px; }
+.search-input:focus, .fuel-select:focus { border-color: #007bff; background-color: white; }
+
+.gps-btn { width: 45px; height: 45px; border-radius: 10px; border: none; background-color: #f4f5f7; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.gps-btn.active { background-color: #007bff; box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3); }
+
+.filter-bar { background: white; padding: 0 15px 12px 15px; display: flex; gap: 10px; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); z-index: 10; flex-shrink: 0; }
+.distance-select { padding: 10px; border-radius: 10px; border: 1px solid #e0e0e0; background-color: #f4f5f7; font-size: 14px; font-weight: 600; color: #333; outline: none; width: 130px; }
+
+.sort-controls { display: flex; background: #e9ecef; flex-grow: 1; border-radius: 10px; padding: 4px; gap: 4px; }
+.sort-btn { flex: 1; padding: 8px; border: none; background: transparent; border-radius: 8px; font-size: 14px; font-weight: 600; color: #555; cursor: pointer; transition: all 0.2s; }
+.sort-btn.active { background: white; color: #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+.list-wrapper { flex-grow: 1; overflow-y: auto; padding: 15px; padding-bottom: 40px; }
+
+.station-card { background: white; border-radius: 16px; padding: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer; transition: transform 0.1s ease-in-out; }
+.station-card:active { transform: scale(0.98); background-color: #f0f7ff; }
+
+.card-left { display: flex; align-items: center; gap: 15px; }
+.station-rank { font-weight: 800; color: #007bff; font-size: 18px; width: 30px; }
+.station-info { display: flex; flex-direction: column; }
+.station-brand { font-weight: 700; font-size: 17px; color: #333; display: block; }
+.station-city { font-size: 13px; color: #888; margin-top: 3px; display: block; }
+.station-dist { color: #007bff; font-weight: 600; }
+
+.card-right { display: flex; flex-direction: column; align-items: flex-end; }
+.price-main { font-size: 22px; font-weight: 800; color: #111; }
+
+.trend-badge { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 8px; margin-top: 5px; }
+.trend-badge.baisse { color: #28a745; background-color: #e6f9ec; }
+.trend-badge.hausse { color: #dc3545; background-color: #fdecee; }
+
+.empty-text { text-align: center; color: #888; margin-top: 40px; font-size: 16px; }
+
+.detail-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: flex-end; }
+.detail-panel { background: white; width: 100%; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 25px 20px 40px 20px; animation: slideUp 0.3s ease-out; max-height: 90vh; overflow-y: auto; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.detail-header { position: relative; margin-bottom: 20px; text-align: center; }
+.close-btn { position: absolute; top: -10px; right: 0; background: #f0f0f0; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer; }
+.detail-header h2 { font-size: 22px; color: #333; }
+.detail-header h3 { font-size: 15px; color: #666; font-weight: normal; margin-top: 5px; }
+.detail-dist { font-size: 14px; color: #007bff; margin-top: 8px; font-weight: 600; }
+
+.text-forecast { background: #f8f9fa; border-radius: 16px; padding: 0 20px; margin-bottom: 25px; }
+.forecast-row { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid #eee; font-size: 17px; }
+.forecast-row:last-child { border-bottom: none; }
+.forecast-row span { color: #555; }
+.forecast-row strong { font-size: 20px; color: #333; }
+.forecast-row.highlight strong { color: #ff7300; }
+.price-color { color: #007bff !important; }
+
+h4 { font-size: 16px; color: #555; margin-bottom: 15px; font-weight: 600; }
+
+.nav-btn { display: block; text-align: center; background: #007bff; color: white !important; padding: 18px; border-radius: 16px; font-size: 18px; font-weight: 700; text-decoration: none; margin-top: 25px; box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3); }
+.nav-btn:active { background: #0056b3; }
+
+.loader-container { display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
+.loader { border: 5px solid #f3f3f3; border-top: 5px solid #007bff; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

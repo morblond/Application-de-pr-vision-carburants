@@ -5,17 +5,12 @@ import Papa from 'papaparse';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import './App.css';
 
-// Formule scientifique de calcul de distance (Haversine)
 const getDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Rayon de la Terre en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 };
 
 export default function App() {
@@ -29,12 +24,9 @@ export default function App() {
   const [userLoc, setUserLoc] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [cpCoords, setCpCoords] = useState({});
-  
-  // États pour les filtres et le tri
-  const [sortBy, setSortBy] = useState("price"); // "price" ou "distance"
-  const [maxDistance, setMaxDistance] = useState(0); // 0 = aucune limite
+  const [sortBy, setSortBy] = useState("price");
+  const [maxDistance, setMaxDistance] = useState(0);
 
-  // Récupération des données
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -63,57 +55,44 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Demande la localisation GPS stricte
   const handleLocate = (autoSort = false) => {
-    if (!navigator.geolocation) return alert("La géolocalisation n'est pas supportée par votre navigateur.");
+    if (!navigator.geolocation) return alert("Géolocalisation non supportée.");
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords;
       setUserLoc({ lat: latitude, lng: longitude });
-      
       if (autoSort) setSortBy("distance");
       
       try {
         const revGeo = await axios.get(`https://geo.api.gouv.fr/communes?lat=${latitude}&lon=${longitude}&fields=codePostaux`);
-        if (revGeo.data && revGeo.data.length > 0) {
-          const cps = revGeo.data[0].codePostaux;
-          if (cps.length > 0) setSearchQuery(cps[0]);
+        if (revGeo.data && revGeo.data.length > 0 && revGeo.data[0].codePostaux.length > 0) {
+          setSearchQuery(revGeo.data[0].codePostaux[0]);
         }
-      } catch (e) {
-        console.error("Erreur géoloc inverse", e);
-      }
+      } catch (e) { console.error("Erreur géoloc inverse", e); }
       setIsLocating(false);
-    }, (error) => {
-      alert("Veuillez autoriser la localisation dans les réglages de votre iPhone pour cette application.");
+    }, () => {
+      alert("Autorisez la localisation dans les réglages de l'iPhone.");
       setIsLocating(false);
-      setSortBy("price"); // Retour au tri par prix si refusé
-      setMaxDistance(0); // Retire le filtre de distance si refusé
+      setSortBy("price");
+      setMaxDistance(0);
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
   };
 
-  // Filtrage par carburant et recherche textuelle
   const filteredStations = useMemo(() => {
     let filtered = allStations.filter(s => s.type_carburant === selectedFuel);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(s => 
-        (s.ville && s.ville.toLowerCase().includes(q)) ||
-        (s.code_postal && String(s.code_postal).includes(q))
-      );
+      filtered = filtered.filter(s => (s.ville && s.ville.toLowerCase().includes(q)) || (s.code_postal && String(s.code_postal).includes(q)));
     }
     return filtered;
   }, [allStations, searchQuery, selectedFuel]);
 
-  // Récupération des coordonnées GPS des codes postaux
   useEffect(() => {
     if (filteredStations.length === 0) return;
     const uniqueCPs = [...new Set(filteredStations.map(s => s.code_postal).filter(Boolean))];
     const missingCPs = uniqueCPs.filter(cp => !cpCoords[cp]);
-    
     if (missingCPs.length > 0) {
-      Promise.allSettled(missingCPs.map(cp => 
-        axios.get(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=centre&format=geojson`)
-      )).then(results => {
+      Promise.allSettled(missingCPs.map(cp => axios.get(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=centre&format=geojson`))).then(results => {
         const newCoords = { ...cpCoords };
         results.forEach((res, i) => {
           if (res.status === 'fulfilled' && res.value.data.features && res.value.data.features.length > 0) {
@@ -126,26 +105,20 @@ export default function App() {
     }
   }, [filteredStations]);
 
-  // Tri et Filtre Distance combinés
   const sortedStations = useMemo(() => {
     if (filteredStations.length === 0) return [];
-
     const withDist = filteredStations.map(s => {
       let dist = null;
       const c = cpCoords[s.code_postal];
-      if (c && userLoc) {
-        dist = getDistance(userLoc.lat, userLoc.lng, c.lat, c.lng);
-      }
+      if (c && userLoc) dist = getDistance(userLoc.lat, userLoc.lng, c.lat, c.lng);
       return { ...s, _dist: dist };
     });
 
-    // 1. Application du filtre de distance
     let stationsToDisplay = withDist;
     if (maxDistance > 0 && userLoc) {
       stationsToDisplay = withDist.filter(s => s._dist !== null && s._dist <= maxDistance);
     }
 
-    // 2. Application du tri
     if (sortBy === "distance" && userLoc) {
       return stationsToDisplay.sort((a, b) => (a._dist === null ? 1 : b._dist === null ? -1 : a._dist - b._dist)).slice(0, 50);
     } else {
@@ -153,20 +126,14 @@ export default function App() {
     }
   }, [filteredStations, userLoc, cpCoords, sortBy, maxDistance]);
 
-  // Gestion du clic sur le filtre distance
   const handleDistanceChange = (val) => {
     setMaxDistance(parseInt(val));
-    if (parseInt(val) > 0 && !userLoc) {
-      handleLocate(true); // Demande le GPS si on veut filtrer par distance sans être localisé
-    }
+    if (parseInt(val) > 0 && !userLoc) handleLocate(true);
   };
 
-  // Gestion du clic sur le tri
   const handleSortClick = (type) => {
     setSortBy(type);
-    if (type === "distance" && !userLoc) {
-      handleLocate(true);
-    }
+    if (type === "distance" && !userLoc) handleLocate(true);
   };
 
   const getDistanceForStation = (station) => {
@@ -189,10 +156,7 @@ export default function App() {
     return parseFloat(station.prix_predit_j14) - parseFloat(station.prix_actuel);
   };
 
-  const getNavLink = (station) => {
-    const query = encodeURIComponent(`${station.marque} ${station.code_postal} ${station.ville}`);
-    return `https://maps.apple.com/?q=${query}`;
-  };
+  const getNavLink = (station) => `https://maps.apple.com/?q=${encodeURIComponent(`${station.marque} ${station.code_postal} ${station.ville}`)}`;
 
   if (loading) return (
     <div className="loader-container">
@@ -208,36 +172,17 @@ export default function App() {
       </header>
       
       <div className="controls-wrapper">
-        <input 
-          type="text" 
-          className="search-input"
-          placeholder="🔎 Ville ou code postal..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <select 
-          className="fuel-select"
-          value={selectedFuel}
-          onChange={(e) => setSelectedFuel(e.target.value)}
-        >
+        <input type="text" className="search-input" placeholder="🔎 Ville ou code postal..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        <select className="fuel-select" value={selectedFuel} onChange={(e) => setSelectedFuel(e.target.value)}>
           {availableFuels.map(fuel => <option key={fuel} value={fuel}>{fuel}</option>)}
         </select>
-        <button 
-          className={`gps-btn ${userLoc ? 'active' : ''}`} 
-          onClick={() => handleLocate()}
-          disabled={isLocating}
-        >
+        <button className={`gps-btn ${userLoc ? 'active' : ''}`} onClick={() => handleLocate()} disabled={isLocating}>
           {isLocating ? '⏳' : '📍'}
         </button>
       </div>
 
-      {/* Ligne des Filtres et Tris */}
       <div className="filter-bar">
-        <select 
-          className="distance-select"
-          value={maxDistance}
-          onChange={(e) => handleDistanceChange(e.target.value)}
-        >
+        <select className="distance-select" value={maxDistance} onChange={(e) => handleDistanceChange(e.target.value)}>
           <option value="0">Toutes distances</option>
           <option value="5">5 km</option>
           <option value="10">10 km</option>
@@ -247,26 +192,14 @@ export default function App() {
         </select>
         
         <div className="sort-controls">
-          <button 
-            className={`sort-btn ${sortBy === 'price' ? 'active' : ''}`}
-            onClick={() => handleSortClick('price')}
-          >
-            💶 Prix
-          </button>
-          <button 
-            className={`sort-btn ${sortBy === 'distance' ? 'active' : ''}`}
-            onClick={() => handleSortClick('distance')}
-          >
-            📍 Distance
-          </button>
+          <button className={`sort-btn ${sortBy === 'price' ? 'active' : ''}`} onClick={() => handleSortClick('price')}>💶 Prix</button>
+          <button className={`sort-btn ${sortBy === 'distance' ? 'active' : ''}`} onClick={() => handleSortClick('distance')}>📍 Distance</button>
         </div>
       </div>
 
       <div className="list-wrapper">
         {sortedStations.length === 0 && (
-          <p className="empty-text">
-            {maxDistance > 0 ? `Aucune station trouvée dans un rayon de ${maxDistance} km.` : "Aucune station trouvée."}
-          </p>
+          <p className="empty-text">{maxDistance > 0 ? `Aucune station dans un rayon de ${maxDistance} km.` : "Aucune station trouvée."}</p>
         )}
         
         {sortedStations.map((station, index) => {
@@ -276,11 +209,7 @@ export default function App() {
           const dist = getDistanceForStation(station);
 
           return (
-            <div 
-              key={index} 
-              className="station-card"
-              onClick={() => setSelectedStation(station)}
-            >
+            <div key={index} className="station-card" onClick={() => setSelectedStation(station)}>
               <div className="card-left">
                 <span className="station-rank">#{index + 1}</span>
                 <div className="station-info">
@@ -311,24 +240,13 @@ export default function App() {
               <button className="close-btn" onClick={() => setSelectedStation(null)}>✕</button>
               <h2>{selectedStation.marque}</h2>
               <h3>{selectedStation.ville} ({selectedStation.code_postal})</h3>
-              {getDistanceForStation(selectedStation) && (
-                <p className="detail-dist">À environ {getDistanceForStation(selectedStation)} de vous</p>
-              )}
+              {getDistanceForStation(selectedStation) && <p className="detail-dist">À environ {getDistanceForStation(selectedStation)} de vous</p>}
             </div>
 
             <div className="text-forecast">
-              <div className="forecast-row">
-                <span>Prix Actuel</span>
-                <strong className="price-color">{selectedStation.prix_actuel} €</strong>
-              </div>
-              <div className="forecast-row">
-                <span>Dans 7 jours</span>
-                <strong>{selectedStation.prix_predit_j7} €</strong>
-              </div>
-              <div className="forecast-row highlight">
-                <span>Dans 14 jours</span>
-                <strong>{selectedStation.prix_predit_j14} €</strong>
-              </div>
+              <div className="forecast-row"><span>Prix Actuel</span><strong className="price-color">{selectedStation.prix_actuel} €</strong></div>
+              <div className="forecast-row"><span>Dans 7 jours</span><strong>{selectedStation.prix_predit_j7} €</strong></div>
+              <div className="forecast-row highlight"><span>Dans 14 jours</span><strong>{selectedStation.prix_predit_j14} €</strong></div>
             </div>
 
             <h4>Évolution des prix</h4>
@@ -342,9 +260,7 @@ export default function App() {
               </LineChart>
             </ResponsiveContainer>
 
-            <a href={getNavLink(selectedStation)} target="_blank" rel="noopener noreferrer" className="nav-btn">
-              🧭 Y aller (Ouvrir dans Maps)
-            </a>
+            <a href={getNavLink(selectedStation)} target="_blank" rel="noopener noreferrer" className="nav-btn">🧭 Y aller (Ouvrir dans Maps)</a>
           </div>
         </div>
       )}
