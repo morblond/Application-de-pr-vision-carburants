@@ -1,0 +1,88 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.app-header {
+  background-color: #007bff;
+  color: white;
+  padding: 15px;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  z-index: 1000;
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.map-wrapper {
+  flex-grow: 1;
+  height: 50vh; /* Prend la moitié de l'écran sur mobile */
+  width: 100%;
+}
+
+.chart-wrapper {
+  height: 50vh; /* Prend l'autre moitié */
+  width: 100%;
+  padding: 15px;
+  background-color: #f8f9fa;
+  overflow-y: auto;
+  border-top: 1px solid #ddd;
+}
+
+.chart-wrapper h2 {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.chart-wrapper h3 {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #666;
+  text-align: center;
+  font-size: 14px;
+  padding: 20px;
+}
+
+/* Animation de chargement */
+.loader {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
