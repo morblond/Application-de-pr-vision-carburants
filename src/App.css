@@ -40,6 +40,7 @@ html, body, #root {
   background-color: white;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   flex-shrink: 0;
+  z-index: 1000;
 }
 
 .search-input {
@@ -48,7 +49,7 @@ html, body, #root {
   border-radius: 12px;
   border: 1px solid #e0e0e0;
   background-color: #f4f5f7;
-  font-size: 16px; /* Empêche le zoom sur iPhone */
+  font-size: 16px;
   outline: none;
 }
 
@@ -57,40 +58,40 @@ html, body, #root {
   background-color: white;
 }
 
-.content-wrapper {
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-  overflow: hidden;
+.map-wrapper {
+  height: 40vh;
+  width: 100%;
+  z-index: 1;
 }
 
-.list-wrapper {
-  flex-grow: 1;
+.bottom-panel {
+  height: 45vh;
+  background-color: white;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
   overflow-y: auto;
-  padding: 10px;
+  padding: 15px;
+  flex-grow: 1;
 }
 
+/* Style de la Liste */
 .station-card {
-  background: white;
+  background: #f8f9fa;
   border-radius: 12px;
   padding: 15px;
   margin-bottom: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   cursor: pointer;
   transition: transform 0.1s;
-  border: 2px solid transparent;
 }
 
 .station-card:active {
   transform: scale(0.98);
-}
-
-.station-card.active {
-  border-color: #007bff;
-  background-color: #f0f7ff;
+  background-color: #eef6ff;
 }
 
 .station-info {
@@ -130,42 +131,74 @@ html, body, #root {
   margin-top: 2px;
 }
 
-.chart-wrapper {
-  height: 40vh;
-  background-color: white;
-  padding: 20px 15px;
-  border-top: 1px solid #eee;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-  flex-shrink: 0;
-}
-
-.chart-wrapper h2 {
-  font-size: 16px;
-  margin-bottom: 2px;
+/* Style du Détail */
+.station-details h2 {
+  font-size: 20px;
   color: #333;
+  margin-bottom: 5px;
 }
 
-.chart-wrapper h3 {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 15px;
-  font-weight: normal;
-}
-
-.placeholder {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  color: #888;
-  text-align: center;
+.station-details h3 {
   font-size: 14px;
+  color: #666;
+  font-weight: normal;
+  margin-bottom: 20px;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #007bff;
+  font-size: 16px;
+  margin-bottom: 15px;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.text-forecast {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 5px 15px;
+  margin-bottom: 20px;
+}
+
+.forecast-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 16px;
+}
+
+.forecast-row:last-child {
+  border-bottom: none;
+}
+
+.forecast-row span {
+  color: #555;
+}
+
+.forecast-row strong {
+  color: #333;
+  font-size: 18px;
+}
+
+.forecast-row.highlight strong {
+  color: #ff7300;
+}
+
+h4 {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
 }
 
 .empty-text {
   text-align: center;
   color: #888;
-  margin-top: 20px;
+  margin-top: 40px;
+  font-size: 15px;
 }
 
 .loader-container {
