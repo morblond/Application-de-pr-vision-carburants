@@ -52,18 +52,31 @@ html, body, #root {
   outline: none;
 }
 
-.search-input {
-  flex-grow: 1;
-}
-
-.fuel-select {
-  width: 130px;
-  background-color: #f4f5f7;
-}
+.search-input { flex-grow: 1; }
+.fuel-select { width: 120px; }
 
 .search-input:focus, .fuel-select:focus {
   border-color: #007bff;
   background-color: white;
+}
+
+.gps-btn {
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+  border: none;
+  background-color: #f4f5f7;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.gps-btn.active {
+  background-color: #007bff;
+  box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);
 }
 
 .list-wrapper {
@@ -118,6 +131,11 @@ html, body, #root {
   display: block;
 }
 
+.station-dist {
+  color: #007bff;
+  font-weight: 600;
+}
+
 .card-right {
   display: flex;
   flex-direction: column;
@@ -138,15 +156,8 @@ html, body, #root {
   margin-top: 5px;
 }
 
-.trend-badge.baisse {
-  color: #28a745;
-  background-color: #e6f9ec;
-}
-
-.trend-badge.hausse {
-  color: #dc3545;
-  background-color: #fdecee;
-}
+.trend-badge.baisse { color: #28a745; background-color: #e6f9ec; }
+.trend-badge.hausse { color: #dc3545; background-color: #fdecee; }
 
 .empty-text {
   text-align: center;
@@ -155,13 +166,9 @@ html, body, #root {
   font-size: 16px;
 }
 
-/* Overlay Détail */
 .detail-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.5);
   z-index: 1000;
   display: flex;
@@ -203,17 +210,9 @@ html, body, #root {
   cursor: pointer;
 }
 
-.detail-header h2 {
-  font-size: 22px;
-  color: #333;
-}
-
-.detail-header h3 {
-  font-size: 15px;
-  color: #666;
-  font-weight: normal;
-  margin-top: 5px;
-}
+.detail-header h2 { font-size: 22px; color: #333; }
+.detail-header h3 { font-size: 15px; color: #666; font-weight: normal; margin-top: 5px; }
+.detail-dist { font-size: 14px; color: #007bff; margin-top: 8px; font-weight: 600; }
 
 .text-forecast {
   background: #f8f9fa;
@@ -231,26 +230,11 @@ html, body, #root {
   font-size: 17px;
 }
 
-.forecast-row:last-child {
-  border-bottom: none;
-}
-
-.forecast-row span {
-  color: #555;
-}
-
-.forecast-row strong {
-  font-size: 20px;
-  color: #333;
-}
-
-.forecast-row.highlight strong {
-  color: #ff7300;
-}
-
-.price-color {
-  color: #007bff !important;
-}
+.forecast-row:last-child { border-bottom: none; }
+.forecast-row span { color: #555; }
+.forecast-row strong { font-size: 20px; color: #333; }
+.forecast-row.highlight strong { color: #ff7300; }
+.price-color { color: #007bff !important; }
 
 h4 {
   font-size: 16px;
@@ -273,9 +257,7 @@ h4 {
   box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);
 }
 
-.nav-btn:active {
-  background: #0056b3;
-}
+.nav-btn:active { background: #0056b3; }
 
 .loader-container {
   display: flex;

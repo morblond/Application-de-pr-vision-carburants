@@ -5,6 +5,19 @@ import Papa from 'papaparse';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import './App.css';
 
+// Fonction mathématique pour calculer la distance entre 2 points GPS (Formule de Haversine)
+const getDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Rayon de la Terre en km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
 export default function App() {
   const [allStations, setAllStations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,6 +25,11 @@ export default function App() {
   const [selectedFuel, setSelectedFuel] = useState("");
   const [availableFuels, setAvailableFuels] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
+  
+  // États pour la géolocalisation
+  const [userLoc, setUserLoc] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [cpCoords, setCpCoords] = useState({}); // Cache des coordonnées des codes postaux
 
   // Récupération des données
   useEffect(() => {
@@ -19,7 +37,6 @@ export default function App() {
       try {
         const apiRes = await axios.get('https://www.data.gouv.fr/api/1/datasets/previsions-des-prix-du-carburants-de-1-a-31-jours-france/');
         const csvResource = apiRes.data.resources.find(r => r.format === 'csv' && r.title.includes('previsions-par-station'));
-        
         if (!csvResource) throw new Error("Fichier introuvable");
 
         const csvRes = await axios.get(csvResource.url);
@@ -30,8 +47,6 @@ export default function App() {
         });
 
         setAllStations(parsedData.data);
-        
-        // Extraction automatique des types de carburants disponibles
         const fuels = [...new Set(parsedData.data.map(s => s.type_carburant).filter(Boolean))];
         setAvailableFuels(fuels);
         if (fuels.length > 0) setSelectedFuel(fuels[0]);
@@ -45,10 +60,34 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Filtrage et tri par prix croissant
+  // Demande la localisation à l'utilisateur
+  const handleLocate = () => {
+    if (!navigator.geolocation) return alert("La géolocalisation n'est pas supportée par votre navigateur.");
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      setUserLoc({ lat: latitude, lng: longitude });
+      
+      // Trouve le code postal de l'utilisateur pour filtrer la liste
+      try {
+        const revGeo = await axios.get(`https://geo.api.gouv.fr/communes?lat=${latitude}&lon=${longitude}&fields=codePostaux`);
+        if (revGeo.data && revGeo.data.length > 0) {
+          const cps = revGeo.data[0].codePostaux;
+          if (cps.length > 0) setSearchQuery(cps[0]);
+        }
+      } catch (e) {
+        console.error("Erreur géoloc inverse", e);
+      }
+      setIsLocating(false);
+    }, (error) => {
+      alert("Impossible de récupérer votre position. Vérifiez vos autorisations.");
+      setIsLocating(false);
+    });
+  };
+
+  // Dès que les stations filtrées changent, on récupère les coordonnées GPS de leur code postal
   const filteredStations = useMemo(() => {
     let filtered = allStations.filter(s => s.type_carburant === selectedFuel);
-    
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(s => 
@@ -56,14 +95,49 @@ export default function App() {
         (s.code_postal && String(s.code_postal).includes(q))
       );
     }
-
-    // Tri par prix actuel
-    return filtered.sort((a, b) => {
-      const pa = parseFloat(a.prix_actuel) || 9999;
-      const pb = parseFloat(b.prix_actuel) || 9999;
-      return pa - pb;
-    }).slice(0, 50); // Limite à 50 résultats pour la performance
+    return filtered.slice(0, 50);
   }, [allStations, searchQuery, selectedFuel]);
+
+  useEffect(() => {
+    if (filteredStations.length === 0) return;
+    const uniqueCPs = [...new Set(filteredStations.map(s => s.code_postal).filter(Boolean))];
+    const missingCPs = uniqueCPs.filter(cp => !cpCoords[cp]);
+    
+    if (missingCPs.length > 0) {
+      Promise.all(missingCPs.map(cp => 
+        axios.get(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=centre&format=geojson`)
+      )).then(results => {
+        const newCoords = { ...cpCoords };
+        results.forEach((res, i) => {
+          if (res.data.features && res.data.features.length > 0) {
+            const coords = res.data.features[0].geometry.coordinates;
+            newCoords[missingCPs[i]] = { lat: coords[1], lng: coords[0] };
+          }
+        });
+        setCpCoords(newCoords);
+      });
+    }
+  }, [filteredStations]);
+
+  // Calcul de la distance et tri
+  const sortedStations = useMemo(() => {
+    if (!userLoc) {
+      // Tri par prix si pas de géolocalisation
+      return [...filteredStations].sort((a, b) => (parseFloat(a.prix_actuel) || 9999) - (parseFloat(b.prix_actuel) || 9999));
+    }
+    // Tri par distance si géolocalisé
+    return [...filteredStations].sort((a, b) => {
+      const distA = getDistance(userLoc.lat, userLoc.lng, cpCoords[a.code_postal]?.lat || 0, cpCoords[a.code_postal]?.lng || 9999);
+      const distB = getDistance(userLoc.lat, userLoc.lng, cpCoords[b.code_postal]?.lat || 0, cpCoords[b.code_postal]?.lng || 9999);
+      return distA - distB;
+    });
+  }, [filteredStations, userLoc, cpCoords]);
+
+  const getDistanceForStation = (station) => {
+    if (!userLoc || !cpCoords[station.code_postal]) return null;
+    const dist = getDistance(userLoc.lat, userLoc.lng, cpCoords[station.code_postal].lat, cpCoords[station.code_postal].lng);
+    return dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`;
+  };
 
   const prepareChartData = (station) => {
     if (!station) return [];
@@ -76,11 +150,9 @@ export default function App() {
 
   const getTrend = (station) => {
     if (!station || !station.prix_actuel || !station.prix_predit_j14) return null;
-    const diff = parseFloat(station.prix_predit_j14) - parseFloat(station.prix_actuel);
-    return diff;
+    return parseFloat(station.prix_predit_j14) - parseFloat(station.prix_actuel);
   };
 
-  // Génère le lien GPS pour iPhone (Apple Plans) ou Android
   const getNavLink = (station) => {
     const query = encodeURIComponent(`${station.marque} ${station.code_postal} ${station.ville}`);
     return `https://maps.apple.com/?q=${query}`;
@@ -99,7 +171,6 @@ export default function App() {
         <h1>Forecast Carburant ⛽</h1>
       </header>
       
-      {/* Contrôles fixes en haut */}
       <div className="controls-wrapper">
         <input 
           type="text" 
@@ -113,21 +184,27 @@ export default function App() {
           value={selectedFuel}
           onChange={(e) => setSelectedFuel(e.target.value)}
         >
-          {availableFuels.map(fuel => (
-            <option key={fuel} value={fuel}>{fuel}</option>
-          ))}
+          {availableFuels.map(fuel => <option key={fuel} value={fuel}>{fuel}</option>)}
         </select>
+        <button 
+          className={`gps-btn ${userLoc ? 'active' : ''}`} 
+          onClick={handleLocate}
+          disabled={isLocating}
+        >
+          {isLocating ? '⏳' : '📍'}
+        </button>
       </div>
 
       <div className="list-wrapper">
-        {filteredStations.length === 0 && (
-          <p className="empty-text">Aucune station trouvée. Essayez une autre ville.</p>
+        {sortedStations.length === 0 && (
+          <p className="empty-text">Aucune station trouvée. {userLoc ? "Touchez 📍 pour vous localiser." : ""}</p>
         )}
         
-        {filteredStations.map((station, index) => {
+        {sortedStations.map((station, index) => {
           const trend = getTrend(station);
           const isBaisse = trend < 0;
           const isHausse = trend > 0;
+          const dist = getDistanceForStation(station);
 
           return (
             <div 
@@ -139,7 +216,10 @@ export default function App() {
                 <span className="station-rank">#{index + 1}</span>
                 <div className="station-info">
                   <span className="station-brand">{station.marque}</span>
-                  <span className="station-city">{station.ville} ({station.code_postal})</span>
+                  <span className="station-city">
+                    {station.ville} ({station.code_postal})
+                    {dist && <span className="station-dist"> • à {dist}</span>}
+                  </span>
                 </div>
               </div>
               <div className="card-right">
@@ -155,7 +235,6 @@ export default function App() {
         })}
       </div>
 
-      {/* Panneau de détail qui slide depuis le bas */}
       {selectedStation && (
         <div className="detail-overlay" onClick={() => setSelectedStation(null)}>
           <div className="detail-panel" onClick={e => e.stopPropagation()}>
@@ -163,6 +242,9 @@ export default function App() {
               <button className="close-btn" onClick={() => setSelectedStation(null)}>✕</button>
               <h2>{selectedStation.marque}</h2>
               <h3>{selectedStation.ville} ({selectedStation.code_postal})</h3>
+              {getDistanceForStation(selectedStation) && (
+                <p className="detail-dist">À environ {getDistanceForStation(selectedStation)} de vous</p>
+              )}
             </div>
 
             <div className="text-forecast">
